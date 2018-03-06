@@ -1,0 +1,113 @@
+---
+title: "Testing Bootstrap Method on Faux Data"
+author: "Bracha Blau"
+date: "February 15, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+First we initilaize our data
+
+```{r}
+n_vec = c(50,100,200)
+p_vec = c(1,5,15)
+beta_vec = c(c(1,2,4,8,16), rep(0,10))
+
+
+#Setting up structure to hold avg power. If this is too messy let me know and I'll try something else
+avg_power = list()
+avg_power$CR = matrix(nrow = length(n_vec), ncol = length(p_vec))
+avg_power$Greedy_search = matrix(nrow = length(n_vec), ncol = length(p_vec))
+avg_power$PSOD = matrix(nrow = length(n_vec), ncol = length(p_vec))
+avg_power$MSOD = matrix(nrow = length(n_vec), ncol = length(p_vec))
+
+
+dimnames(avg_power$CR) = list(n_vec,p_vec)
+dimnames(avg_power$Greedy_search) = list(n_vec,p_vec)
+dimnames(avg_power$PSOD) = list(n_vec,p_vec)
+dimnames(avg_power$MSOD) = list(n_vec,p_vec)
+
+for(n in n_vec){
+  for(p in p_vec){
+    beta = beta_vec[1:p]
+    power_vec = rep(0,4) #initialze power to zero for each set of conditions
+    names(power_vec) = c("CR","Greedy_search","PSOD","MSOD")
+    
+    for(iter in 1:1000){ #num of simulations for every condition
+      
+      X = matrix(runif(n*p,min = 0,max = 100), nrow = n, ncol = p) #our fake data
+      
+      #Getting allocation vec under different methods and testing for power
+      
+      #Complete randomization
+      alloc_vec = cr(X)
+      y = get_yvec(X,allo_vec,beta)
+      
+      #NOTE: I realize this structure might not make sense for testing power, and that different
+      #methods use different ways to get power but for now I'll keep it for the template
+      power_vec("CR") = power_vec("CR") + test_power()
+      
+      #Greedy rearch
+      alloc_vec = gs(X)
+      y = get_yvec(X,allo_vec,beta)
+      power_vec("Greedy_search") = power_vec("Greedy_search") + test_power()
+      
+      #PSOD
+      alloc_vec = psod(X)
+      y = get_yvec(X,allo_vec,beta)
+      power_vec("PSOD") = power_vec("PSOD") + test_power()
+      
+      #MSOD
+      alloc_vec = msod(X)
+      y = get_yvec(X,allo_vec,beta)
+      power_vec("MSOD") = power_vec("MSOD") + test_power()
+      
+    }
+    
+    avg_power$CR[toString(n), toString(p)] = power_vec("CR")/1000
+    avg_power$Greedy_search[toString(n), toString(p)] = power_vec("Greedy_search")/1000
+    avg_power$PSOD[toString(n), toString(p)] = power_vec("PSOD")/1000
+    avg_power$MSOD[toString(n), toString(p)] = power_vec("MSOD")/1000
+    
+  }
+}
+
+
+#Function to return y vector based on allocation vector
+get_yvec = function(X, alloc_vec, beta){
+  epsilon = runif(1)
+  y = (X %*% beta) + (alloc_vec * 10) + epsilon #I think you suggested making the effect +10, if not I could change it
+  
+}
+
+```
+
+
+My work from trying to min mahalnobis distance ignore for now
+```{r}
+pacman::p_load(ROI)
+
+allo_vec = sample(c(rep(0,50),rep(1,50)))
+
+dist = function(allo_vec){
+  removeT = which(allo_vec == 1)
+  removeC = which(allo_vec == 0)
+  Xt = X[-removeC,]
+  Xc = X[-removeT,]
+  mahalanobis(Xt,Xc,cov = matrix(0,nrow=p,ncol=p))
+}
+
+objective = F_objective(F=dist,n=100)
+
+op = OP(objective = objective, maximum = FALSE, types = B)
+
+solution = ROI_solve(op)
+
+
+```
+
