@@ -14,100 +14,123 @@ knitr::opts_chunk$set(echo = TRUE)
 First we initilaize our data
 
 ```{r}
-n_vec = c(50,100,200)
-p_vec = c(1,5,15)
-beta_vec = c(c(1,2,4,8,16), rep(0,10))
-alpha = .05
-num_iters = 1 #Number of trials to average power
-num_iters_per_trial = 100 #Number of vectors to compute for each permutaion test/bootstrap test
-treatment_effect = 10
+if (!require("pacman")){install.packages("pacman")}
+pacman::p_load(GreedyExperimentalDesign, gurobi, designmatch)
+
+n_vec = c(50, 100, 200)
+p_vec = c(1, 5, 15)
+beta_vec = c(c(1, 2, 4, 8, 16), rep(0, 10))
+ALPHA = .05
+NUM_ITERS = 100 #Number of trials to average power
+NUM_ITERS_PER_TRIAL = 100 #Number of vectors to compute for each permutaion test/bootstrap test
+TREATMENT_EFFECT = 30
+SIGMA = 1
+MAX_X = 100
 
 
-#Setting up structure to hold avg power. If this is too messy let me know and I'll try something else
-avg_power = list()
-avg_power$CR = matrix(nrow = length(n_vec), ncol = length(p_vec))
-avg_power$Greedy_search = matrix(nrow = length(n_vec), ncol = length(p_vec))
-avg_power$PSOD = matrix(nrow = length(n_vec), ncol = length(p_vec))
-avg_power$MSOD = matrix(nrow = length(n_vec), ncol = length(p_vec))
+#Setting up structure to hold avg power for both treatment effects.
+avg_power_effect = list()
+avg_power_effect$CR = matrix(nrow = length(n_vec), ncol = length(p_vec))
+avg_power_effect$Greedy_search = matrix(nrow = length(n_vec), ncol = length(p_vec))
+avg_power_effect$PSOD = matrix(nrow = length(n_vec), ncol = length(p_vec))
+
+dimnames(avg_power_effect$CR) = list(n_vec, p_vec)
+dimnames(avg_power_effect$Greedy_search) = list(n_vec, p_vec)
+dimnames(avg_power_effect$PSOD) = list(n_vec, p_vec)
+
+avg_power_null = list()
+avg_power_null$CR = matrix(nrow = length(n_vec), ncol = length(p_vec))
+avg_power_null$Greedy_search = matrix(nrow = length(n_vec), ncol = length(p_vec))
+avg_power_null$PSOD = matrix(nrow = length(n_vec), ncol = length(p_vec))
+
+dimnames(avg_power_null$CR) = list(n_vec, p_vec)
+dimnames(avg_power_null$Greedy_search) = list(n_vec, p_vec)
+dimnames(avg_power_null$PSOD) = list(n_vec, p_vec)
 
 
-dimnames(avg_power$CR) = list(n_vec,p_vec)
-dimnames(avg_power$Greedy_search) = list(n_vec,p_vec)
-dimnames(avg_power$PSOD) = list(n_vec,p_vec)
-dimnames(avg_power$MSOD) = list(n_vec,p_vec)
 
-
-for(n in n_vec){
-  for(p in p_vec){
-    beta = beta_vec[1:p]
-    rejections_vec = rep(0,4) #vector to hold number of rejections for every method
-    names(rejections_vec) = c("CR","Greedy_search","PSOD","MSOD")
-    
-    for(iter in num_iters){ #num of simulations for every condition
+for(treatment_effect in c(TREATMENT_EFFECT, 0)){
+  for(n in n_vec){
+    for(p in p_vec){
+      beta = beta_vec[1:p]
+      rejections_vec = rep(0, 4) #vector to hold number of rejections for every method
+      names(rejections_vec) = c("CR", "Greedy_search", "PSOD", "MSOD")
+      cat("TESTING: n:",n," p:",p)
+      for(iter in 1:NUM_ITERS){ #num of simulations for every condition
+        start = Sys.time()
+        
+        X = matrix(runif(n*p, min =  0, max = MAX_X), nrow = n, ncol = p) #our fake data
+        
+        #Getting allocation vec under different methods and testing for power
+        
+        #Complete randomization
+        alloc_vec_cr = cr(X)
+        y_cr = get_yvec(X, alloc_vec_cr, beta, treatment_effect)
+        rejections_vec["CR"] = rejections_vec["CR"] + run_hypothesis_test_cr(X, y_cr, alloc_vec_cr)
+        rejections_vec["CR"]
+        
+        #Greedy search
+        gs_obj = gs(X) #matrix of all the greedy search allocation vecs we'll need for this trial
+        y_gs = get_yvec(X, gs_obj[, 1], beta, treatment_effect)
+        rejections_vec["Greedy_search"] = rejections_vec["Greedy_search"] + run_hypothesis_test_gs(gs_obj[, 2:(NUM_ITERS_PER_TRIAL+1)], y_gs, gs_obj[,1])
+        
+        #PSOD
+        #alloc_vec = psod(X)
+        #y = get_yvec(X,allo_vec,beta)
+        #rejections_vec["PSOD"] = rejections_vec["PSOD"] + run_bootstrap_test_psod
+        
+        #Pretty sure we will drop this test
+        #MSOD
+        #alloc_vec = msod(X)
+        #y = get_yvec(X,allo_vec,beta)
+        #rejections_vec("MSOD") = rejections_vec("MSOD") + test_power()
+        endt = Sys.time()
+        cat("Time in one iteration: ", endt-start)
+        
+      }
       
-      X = matrix(runif(n*p,min = 0,max = 10), nrow = n, ncol = p) #our fake data
-      
-      #Getting allocation vec under different methods and testing for power
-      
-      #Complete randomization
-      alloc_vec_cr = cr(X)
-      y_cr = get_yvec(X,alloc_vec_cr,beta)
-      rejections_vec["CR"] = rejections_vec["CR"] + run_hypothesis_test_cr(X,y_cr,alloc_vec_cr)
-      rejections_vec["CR"]
-      
-      #Greedy search
-      alloc_vec_gs = gs(X)
-      y_gs = get_yvec(X,alloc_vec_gs,beta)
-      rejections_vec["Greedy_search"] = rejections_vec["Greedy_search"] + run_hypothesis_test_gs(X,y_gs,alloc_vec_gs)
-      
-      #PSOD
-      #alloc_vec = psod(X)
-      #y = get_yvec(X,allo_vec,beta)
-      #rejections_vec["PSOD"] = rejections_vec["PSOD"] + test_power()
-      
-      #Pretty sure we will drop this test
-      #MSOD
-      #alloc_vec = msod(X)
-      #y = get_yvec(X,allo_vec,beta)
-      #rejections_vec("MSOD") = rejections_vec("MSOD") + test_power()
-      
+      if(treatment_effect == TREATMENT_EFFECT){
+        avg_power_effect$CR[toString(n), toString(p)] = rejections_vec["CR"]/NUM_ITERS
+        avg_power_effect$Greedy_search[toString(n), toString(p)] = rejections_vec["Greedy_search"]/NUM_ITERS
+        #avg_power_effect$PSOD[toString(n), toString(p)] = rejections_vec["PSOD"]/num_iters
+      } else{
+        avg_power_null$CR[toString(n), toString(p)] = rejections_vec["CR"]/NUM_ITERS
+        avg_power_null$Greedy_search[toString(n), toString(p)] = rejections_vec["Greedy_search"]/NUM_ITERS
+        #avg_power$PSOD[toString(n), toString(p)] = rejections_vec["PSOD"]/num_iters
+      }
     }
-    
-    avg_power$CR[toString(n), toString(p)] = rejections_vec["CR"]/num_iters
-    avg_power$Greedy_search[toString(n), toString(p)] = rejections_vec["Greedy_search"]/num_iters
-    #avg_power$PSOD[toString(n), toString(p)] = rejections_vec["PSOD"]/num_iters
-    #avg_power$MSOD[toString(n), toString(p)] = rejections_vec["MSOD"]/num_iters
-    
   }
 }
 
 
 #Function to return y vector based on allocation vector
-get_yvec = function(X, alloc_vec, beta){
-  epsilon = runif(nrow(X))
+get_yvec = function(X, alloc_vec, beta, treatment_effect){
+  epsilon = rnorm(nrow(X), 0, SIGMA)
   y = (X %*% beta) + (alloc_vec * treatment_effect) + epsilon
   
 }
 
 cr = function(X){
-  sample(c(rep(0,nrow(X)/2),rep(1,nrow(X)/2)))
+  sample(c(rep(0, nrow(X)/2), rep(1,nrow(X)/2)))
 }
 
 run_hypothesis_test_cr = function(X, y, alloc_vec){
   #initializing some vars
+  start_time = Sys.time()
   y_t = sum(y[which(alloc_vec == 1)])
   y_c = sum(y[which(alloc_vec == 0)])
   experimental_test_statistic = y_t - y_c
-  test_statistics = c()
-  for(i in 1:num_iters_per_trial){ #comparing our test statistic to num_iters different allocation vectors
+  test_statistics = array(NA, NUM_ITERS_PER_TRIAL)
+  for(i in 1:NUM_ITERS_PER_TRIAL){ #comparing our test statistic to num_iters different allocation vectors
     allo_vec_test = cr(X)
     y_t_test = sum(y[which(allo_vec_test == 1)])
     y_c_test = sum(y[which(allo_vec_test == 0)])
     test_statistics[i] = y_t_test - y_c_test
   }
   
-  ci_alpha = quantile(test_statistics, c(alpha / 2, 1- alpha / 2))
-
+  ci_alpha = quantile(test_statistics, c(ALPHA / 2, 1- ALPHA / 2))
+  end_time = Sys.time()
+  cat("Time spent in CR hypo test: ",end_time-start_time)
   if (experimental_test_statistic <  ci_alpha[1] |  experimental_test_statistic > ci_alpha[2]) {
     #tally this is a reject
     1
@@ -117,33 +140,49 @@ run_hypothesis_test_cr = function(X, y, alloc_vec){
   }
   
 }
-avg_power
+avg_power_effect
+avg_power_null
 
 
 gs = function(X){
+  start = Sys.time()
   ged = initGreedyExperimentalDesignObject(X, 
-        max_designs = 1, 
+        max_designs = 1 + NUM_ITERS_PER_TRIAL, 
         num_cores = 1, 
         wait = TRUE,
         objective = "mahal_dist")
-  results = resultsGreedySearch(ged, max_vectors = )
-  results$ending_indicTs[, 1, drop = FALSE]
+  results = resultsGreedySearch(ged, max_vectors = 1 + NUM_ITERS_PER_TRIAL)
+  #indicT_experiment = results$ending_indicTs[, 1, drop = FALSE]
+  #indictTs_permutation_test = results$ending_indicTs[, 2 : (1 + NUM_PERM)]
+  
+  #results = resultsGreedySearch(ged, max_vectors = )
+  en1 = Sys.time()
+  cat("Time getting gs obj: ",en1-start)
+  results$ending_indicTs[, 1:(1+NUM_ITERS_PER_TRIAL), drop = FALSE]
 }
 
-run_hypothesis_test_gs = function(X, y, alloc_vec){
+run_hypothesis_test_gs = function(gs_vecs, y, alloc_vec){
+  start = Sys.time()
   #initializing some vars
   y_t = sum(y[which(alloc_vec == 1)])
   y_c = sum(y[which(alloc_vec == 0)])
+  #cat("yt: ",y_t,"Y_c: ",y_c)
   experimental_test_statistic = y_t - y_c
-  test_statistics = c()
-  for(i in 1:num_iters_per_trial){ #comparing our test statistic to num_iters different allocation vectors
-    allo_vec_test = gs(X)
+  test_statistics = array(NA, NUM_ITERS_PER_TRIAL)
+  for(i in 1:NUM_ITERS_PER_TRIAL){ #comparing our test statistic to num_iters different allocation vectors
+    #cat("Greedt search allo vec# ",i," ;",gs_vecs[,i])
+    allo_vec_test = as.numeric(gs_vecs[, i])
     y_t_test = sum(y[which(allo_vec_test == 1)])
     y_c_test = sum(y[which(allo_vec_test == 0)])
+    #cat("For: ",i," y bar test: ",y_t_test," c bar perm: ",y_c_test)
     test_statistics[i] = y_t_test - y_c_test
   }
   
-  ci_alpha = quantile(test_statistics, c(alpha / 2, 1- alpha / 2))
+  ci_alpha = quantile(test_statistics, c(ALPHA / 2, 1- ALPHA / 2))
+  #cat("exp test stat: ",experimental_test_statistic, "cialpah: ",ci_alpha)
+  
+  endt = Sys.time()
+  cat("TIme in gs hypo: ", endt-start)
 
   if (experimental_test_statistic <  ci_alpha[1] |  experimental_test_statistic > ci_alpha[2]) {
     #tally this is a reject
