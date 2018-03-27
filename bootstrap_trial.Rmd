@@ -17,8 +17,8 @@ First we initilaize our data
 if (!require("pacman")){install.packages("pacman")}
 pacman::p_load(GreedyExperimentalDesign, gurobi, designmatch)
 
-n_vec = c(50, 100, 200)
-p_vec = c(1, 5, 15)
+n_vec = c(10, 30, 50)
+p_vec = c(1, 5, 8)
 beta_vec = c(c(1, 2, 4, 8, 16), rep(0, 10))
 ALPHA = .05
 NUM_ITERS = 100 #Number of trials to average power
@@ -85,7 +85,7 @@ for(treatment_effect in c(TREATMENT_EFFECT, 0)){
         #y = get_yvec(X,allo_vec,beta)
         #rejections_vec("MSOD") = rejections_vec("MSOD") + test_power()
         endt = Sys.time()
-        cat("Time in one iteration: ", endt-start)
+        #cat("Time in one iteration: ", endt-start)
         
       }
       
@@ -116,7 +116,7 @@ cr = function(X){
 
 run_hypothesis_test_cr = function(X, y, alloc_vec){
   #initializing some vars
-  start_time = Sys.time()
+  #start_time = Sys.time()
   y_t = sum(y[which(alloc_vec == 1)])
   y_c = sum(y[which(alloc_vec == 0)])
   experimental_test_statistic = y_t - y_c
@@ -129,8 +129,8 @@ run_hypothesis_test_cr = function(X, y, alloc_vec){
   }
   
   ci_alpha = quantile(test_statistics, c(ALPHA / 2, 1- ALPHA / 2))
-  end_time = Sys.time()
-  cat("Time spent in CR hypo test: ",end_time-start_time)
+  #end_time = Sys.time()
+  #cat("Time spent in CR hypo test: ",end_time-start_time)
   if (experimental_test_statistic <  ci_alpha[1] |  experimental_test_statistic > ci_alpha[2]) {
     #tally this is a reject
     1
@@ -157,12 +157,12 @@ gs = function(X){
   
   #results = resultsGreedySearch(ged, max_vectors = )
   en1 = Sys.time()
-  cat("Time getting gs obj: ",en1-start)
+  #cat("Time getting gs obj: ",en1-start)
   results$ending_indicTs[, 1:(1+NUM_ITERS_PER_TRIAL), drop = FALSE]
 }
 
 run_hypothesis_test_gs = function(gs_vecs, y, alloc_vec){
-  start = Sys.time()
+  #start = Sys.time()
   #initializing some vars
   y_t = sum(y[which(alloc_vec == 1)])
   y_c = sum(y[which(alloc_vec == 0)])
@@ -181,8 +181,8 @@ run_hypothesis_test_gs = function(gs_vecs, y, alloc_vec){
   ci_alpha = quantile(test_statistics, c(ALPHA / 2, 1- ALPHA / 2))
   #cat("exp test stat: ",experimental_test_statistic, "cialpah: ",ci_alpha)
   
-  endt = Sys.time()
-  cat("TIme in gs hypo: ", endt-start)
+  #endt = Sys.time()
+  #cat("TIme in gs hypo: ", endt-start)
 
   if (experimental_test_statistic <  ci_alpha[1] |  experimental_test_statistic > ci_alpha[2]) {
     #tally this is a reject
